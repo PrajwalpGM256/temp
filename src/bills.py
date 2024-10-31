@@ -81,7 +81,7 @@ def add_ld(df):
     df["ldnumber"] = df["ld"].apply(lambda x: int(x.split("-")[2]))
     return df
 
-def list_bills(directory="../data/131/bills/"):
+def list_bills(directory="/home/paztino/idmdp/finalproject2/maine-testimony/data/131/txt/"):
     """
     Returns a python list of bills
     """
@@ -117,14 +117,14 @@ def list_bills_with_members(**kwargs):
         suffixes=(None, "_sponsor")
         )
 
-def get_bill_info(ldno, directory="../data/131/legiscan/bill/"):
+def get_bill_info(ldno, directory="/home/paztino/idmdp/finalproject2/maine-testimony/data/131/txt/"):
     try:
         return json.load(open(os.path.join(directory, f"LD{int(ldno)}.json")))
     except FileNotFoundError:
         print(f"Could not find bill info for LD{int(ldno)}")
         return None
     
-def get_bill_attr(ldno, attr="title", directory="../data/131/legiscan/bill/"):
+def get_bill_attr(ldno, attr="title", directory="/home/paztino/idmdp/finalproject2/maine-testimony/data/131/txt/"):
     try:
         info = json.load(open(os.path.join(directory, f"LD{int(ldno)}.json")))
         if info:
@@ -132,25 +132,54 @@ def get_bill_attr(ldno, attr="title", directory="../data/131/legiscan/bill/"):
     except:
         return None
 
-def list_testimony(directory="../data/131/testimony/"):
+# def list_testimony(directory="/home/paztino/idmdp/finalproject2/maine-testimony/data/131/txt"):
+#     """
+#     Returns a dataframe of testimony
+#     """
+#     all_files = []
+#     # get a list of everything in the provided directory
+#     for root, dirs, files in os.walk(directory):
+#         if len(files) > 0:
+#             all_files.extend(os.path.join(root, f) for f in files)
+#     all_files = [{
+#             "ld": int(f.split("/")[-2].split("-")[2]),
+#             "name": f.split("/")[-1].split(".")[0].split("(")[0].strip(),
+#             "organization": f.split("/")[-1].split("(")[1].split(")")[0].strip(),
+#             "text": get_text(f),
+#             "file": f
+#         } for f in all_files if f.lower().endswith(".txt")]
+#     # return a list of files
+#     testimony_list = pd.DataFrame.from_records(all_files)
+#     return testimony_list
+
+def list_testimony(directory="/home/paztino/idmdp/finalproject2/maine-testimony/data/131/txt"):
     """
     Returns a dataframe of testimony
     """
     all_files = []
-    # get a list of everything in the provided directory
     for root, dirs, files in os.walk(directory):
         if len(files) > 0:
             all_files.extend(os.path.join(root, f) for f in files)
-    all_files = [{
-            "ld": int(f.split("/")[-2].split("-")[2]),
-            "name": f.split("/")[-1].split(".")[0].split("(")[0].strip(),
-            "organization": f.split("/")[-1].split("(")[1].split(")")[0].strip(),
-            "text": get_text(f),
-            "file": f
-        } for f in all_files if f.lower().endswith(".txt")]
-    # return a list of files
-    testimony_list = pd.DataFrame.from_records(all_files)
-    return testimony_list
+    
+    testimonies = []
+    for f in all_files:
+        path_parts = f.split("/")
+        if len(path_parts) < 3 or "-" not in path_parts[-2]:
+            print(f"Skipping file due to unexpected path format: {f}")
+            continue  # skip files that don't match the expected format
+
+        try:
+            ld = int(path_parts[-2].split("-")[2])
+            name = path_parts[-1].split(".")[0].split("(")[0].strip()
+            organization = path_parts[-1].split("(")[1].split(")")[0].strip()
+            text = get_text(f)
+            testimonies.append({"ld": ld, "name": name, "organization": organization, "text": text, "file": f})
+        except (IndexError, ValueError) as e:
+            print(f"Skipping file {f} due to parsing error: {e}")
+            continue  # skip files that don't meet the format or contain parsing issues
+
+    return pd.DataFrame(testimonies)
+
 
 def fuzzy_match_towns(testimony):
     """
@@ -161,7 +190,7 @@ def fuzzy_match_towns(testimony):
     if testimony == "None" or testimony == "":
         return None
     # check if organization is a zip code
-    if re.match("^\d{5}$", testimony):
+    if re.match(r"^\d{5}$", testimony):
         zc = zcdb[testimony]
         if zc.state == "ME":
             return zc.city
@@ -181,3 +210,127 @@ def fuzzy_match_towns(testimony):
     if score < 90:
         return None
     return match
+
+
+
+# import os
+# import pandas as pd
+
+# def list_bills(directory="/home/paztino/idmdp/finalproject2/maine-testimony/data/131/txt/"):
+#     # Check if the cleaned data is already saved
+#     if os.path.exists("../data/cleaned_bills.csv"):
+#         print("Loading cleaned bills data from CSV...")
+#         return pd.read_csv("../data/cleaned_bills.csv")
+    
+#     # Otherwise, read from the text files in the specified directory
+#     print("Reading bills data from the text directory...")
+#     sdir = os.scandir(directory)
+#     bill_list = pd.DataFrame.from_records([{
+#         "file": d.name, 
+#         "ld_ext": d.name.rsplit(".", maxsplit=1)[0],
+#         } for d in sdir if d.name.lower().endswith(".txt")])
+#     bill_list["ld"] = bill_list["ld_ext"].apply(lambda d: int(d.split("-")[2]))
+#     bill_list["session"] = bill_list["ld_ext"].apply(lambda d: d.split("-")[0])
+#     bill_list["amendment"] = bill_list["ld_ext"].apply(
+#         lambda d: d.split("-", maxsplit=3)[-1] if len(d.split("-", maxsplit=3)) > 3 else None
+#     )
+#     # Save as CSV for future runs
+#     bill_list.to_csv("../data/cleaned_bills.csv", index=False)
+#     return bill_list
+
+# def list_testimony(directory="/home/paztino/idmdp/finalproject2/maine-testimony/data/131/txt/"):
+#     # Check if the cleaned testimony data already exists
+#     if os.path.exists("../data/cleaned_testimony.csv"):
+#         print("Loading cleaned testimony data from CSV...")
+#         return pd.read_csv("../data/cleaned_testimony.csv")
+    
+#     # Placeholder for testimony data processing
+#     print("Reading testimony data from the text directory...")
+#     sdir = os.scandir(directory)
+#     testimony_list = pd.DataFrame.from_records([{
+#         "file": d.name,
+#         "ld_ext": d.name.rsplit(".", maxsplit=1)[0]
+#     } for d in sdir if d.name.lower().endswith(".txt")])
+    
+#     testimony_list["ld"] = testimony_list["ld_ext"].apply(lambda d: int(d.split("-")[2]))
+#     testimony_list["session"] = testimony_list["ld_ext"].apply(lambda d: d.split("-")[0])
+    
+#     # Save as CSV for future runs
+#     testimony_list.to_csv("../data/cleaned_testimony.csv", index=False)
+#     return testimony_list
+
+# def save_cleaned_data():
+#     df_bills = list_bills()
+#     df_testimony = list_testimony()
+#     print("Cleaned data saved as CSV files.")
+
+# if __name__ == "__main__":
+#     save_cleaned_data()
+
+
+# bills.py
+
+# import os
+# import pandas as pd
+# import re
+
+# def clean_text_column(column):
+#     """Utility to clean text data by removing whitespace and special characters."""
+#     return column.str.strip().replace(r'\s+', ' ', regex=True).replace(r'[^\w\s]', '', regex=True)
+
+# def list_bills(directory="/home/paztino/idmdp/finalproject2/maine-testimony/data/131/txt/"):
+#     # Check if the cleaned data is already saved
+#     if os.path.exists("../data/cleaned_bills.csv"):
+#         print("Loading cleaned bills data from CSV...")
+#         return pd.read_csv("../data/cleaned_bills.csv")
+    
+#     print("Reading bills data from the text directory...")
+#     sdir = os.scandir(directory)
+#     bill_list = pd.DataFrame.from_records([{
+#         "file": d.name, 
+#         "ld_ext": d.name.rsplit(".", maxsplit=1)[0],
+#         } for d in sdir if d.name.lower().endswith(".txt")])
+    
+#     # Extract and clean columns
+#     bill_list["ld"] = bill_list["ld_ext"].apply(lambda d: int(re.search(r'\d+', d.split("-")[2]).group()))
+#     bill_list["session"] = bill_list["ld_ext"].apply(lambda d: int(re.search(r'\d+', d.split("-")[0]).group()))
+#     bill_list["amendment"] = bill_list["ld_ext"].apply(lambda d: d.split("-", maxsplit=3)[-1] if len(d.split("-", maxsplit=3)) > 3 else None)
+
+#     # Clean text columns
+#     bill_list['file'] = clean_text_column(bill_list['file'])
+#     bill_list['amendment'] = clean_text_column(bill_list['amendment'].fillna("No Amendment"))
+
+#     # Save as CSV for future runs
+#     bill_list.to_csv("../data/cleaned_bills.csv", index=False)
+#     return bill_list
+
+# def list_testimony(directory="/home/paztino/idmdp/finalproject2/maine-testimony/data/131/txt/"):
+#     # Check if the cleaned testimony data already exists
+#     if os.path.exists("../data/cleaned_testimony.csv"):
+#         print("Loading cleaned testimony data from CSV...")
+#         return pd.read_csv("../data/cleaned_testimony.csv")
+    
+#     print("Reading testimony data from the text directory...")
+#     sdir = os.scandir(directory)
+#     testimony_list = pd.DataFrame.from_records([{
+#         "file": d.name,
+#         "ld_ext": d.name.rsplit(".", maxsplit=1)[0]
+#     } for d in sdir if d.name.lower().endswith(".txt")])
+
+#     # Extract and clean columns
+#     testimony_list["ld"] = testimony_list["ld_ext"].apply(lambda d: int(re.search(r'\d+', d.split("-")[2]).group()))
+#     testimony_list["session"] = testimony_list["ld_ext"].apply(lambda d: int(re.search(r'\d+', d.split("-")[0]).group()))
+#     testimony_list['file'] = clean_text_column(testimony_list['file'])
+
+#     # Save as CSV for future runs
+#     testimony_list.to_csv("../data/cleaned_testimony.csv", index=False)
+#     return testimony_list
+
+# def save_cleaned_data():
+#     df_bills = list_bills()
+#     df_testimony = list_testimony()
+#     print("Cleaned data saved as CSV files.")
+
+# if __name__ == "__main__":
+#     save_cleaned_data()
+
